@@ -19,12 +19,15 @@ export class MultisigAddress extends Address {
 
   public N!: number
 
-  constructor(version: number, netType: NetType, M: number, N: number, publicKey: Uint8Array) {
+  public constructor(version: number, netType: NetType, M: number, N: number, publicKey: Uint8Array) {
     if (M > 256) {
       throw new Error('required signers cannot exceed 256')
     }
     if (N > 256) {
       throw new Error('total signers cannot exceed 256')
+    }
+    if (M > N) {
+      throw new Error('required signers cannot exceed total signers')
     }
     super(version, netType, MULTISIG_KEY_TYPE, publicKey);
     this.M = M
@@ -68,7 +71,7 @@ export class MultisigAddress extends Address {
     return new MultisigAddress(version, netType, M, N, publicKey)
   }
 
-  public static async create(addresses: Address[], M: number, N: number, netType?: NetType): Promise<MultisigAddress> {
+  public static async create(addresses: Address[], M: number, netType?: NetType): Promise<MultisigAddress> {
     const version = 0
     if (!netType) {
       netType = MAINNET
@@ -83,7 +86,7 @@ export class MultisigAddress extends Address {
     }
 
     const publicKey = (await sha256.digest(multisigPubKeysBin))
-    return new MultisigAddress(version, netType, M, N, publicKey.bytes)
+    return new MultisigAddress(version, netType, M, addresses.length, publicKey.bytes)
   }
 
   static isValid(b58: string): boolean {
