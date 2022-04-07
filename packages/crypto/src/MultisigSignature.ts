@@ -1,7 +1,7 @@
 import Address, { KeyTypes, MultisigAddress } from '@helium/address'
-import { sortAddresses } from '@helium/address/build/utils'
 import { verifySignature } from './utils'
 const {MULTISIG_KEY_TYPE} = KeyTypes
+const PUBLIC_KEY_LENGTH = 33;
 
 
 class KeySignature {
@@ -14,11 +14,11 @@ class KeySignature {
     this.signature = signature
   }
 
-  static new(addresses: Address[], address: Address, signature: Uint8Array) {
+  public static new(addresses: Address[], address: Address, signature: Uint8Array) {
     if (address.keyType == MULTISIG_KEY_TYPE) {
       throw new Error('invalid keytype for multisig KeySignature')
     }
-    return new KeySignature(addresses.indexOf(address), signature)
+    return new KeySignature(addresses.findIndex(addr => addr.publicKey === address.publicKey), signature)
   }
 }
 
@@ -32,10 +32,10 @@ export default class MultisigSignature {
     this.signatures = signatures
   }
 
-  static async create(multisigAddress: MultisigAddress, addresses: Address[], signatures: Map<Address, Uint8Array>): Promise<MultisigSignature> {
+  public static create(multisigAddress: MultisigAddress, addresses: Address[], signatures: Map<Address, Uint8Array>): MultisigSignature {
     if (multisigAddress.M > addresses.length) {
       throw new Error('insufficient signatures')
-    }
+    } 
     if (multisigAddress.N > addresses.length) {
       throw new Error('insufficient keys')
     }
@@ -50,9 +50,8 @@ export default class MultisigSignature {
     return new MultisigSignature(addresses, keySignatures)
   }
 
-  async verify(message: Uint8Array): Promise<number> {
-    let valid_signature_count: number = 0;
-    debugger;
+  public verify(message: Uint8Array): number {
+    let valid_signature_count = 0;
     for (const sig of this.signatures) {
       let address = this.addresses[sig.index];
       if (verifySignature(sig.signature, message, address.publicKey)){
@@ -60,5 +59,47 @@ export default class MultisigSignature {
       }
     }
     return valid_signature_count
+  }
+
+  public static fromString(multisigAddress: MultisigAddress, input: Uint8Array): MultisigSignature {
+    let addresses : Address[] = [];
+    for (let i = 0; i < multisigAddress.N; i++){
+      let address = Address.fromBin(Buffer.from(input.slice(0, PUBLIC_KEY_LENGTH)))
+      input = input.slice(PUBLIC_KEY_LENGTH)
+      addresses.push(address)
+    }
+    
+    let signatures = new Map<Address, Uint8Array>();
+    do {
+      let info = input.slice(0, 2);
+      let index = info[0];
+      let signature = input.slice(2, info[1] + 2)
+      signatures.set(addresses[index], signature)
+      input = input.slice(info[1] + 2)
+    } while (input.length);
+
+    return MultisigSignature.create(multisigAddress, addresses, signatures)
+  }
+
+  public toString(): Uint8Array { 
+    const multisigPubKeysBin = this.addressesToString()
+    const multisigSignatures = this.signaturesToString()
+    return new Uint8Array([...multisigPubKeysBin, ...multisigSignatures])
+  }
+
+  addressesToString() {
+    let multisigPubKeysBin = new Uint8Array()
+    for (const address of this.addresses) {
+      multisigPubKeysBin = new Uint8Array([...multisigPubKeysBin, ...address.bin])
+    }
+    return multisigPubKeysBin
+  }
+
+  signaturesToString() {
+    let multisigSignatures = new Uint8Array()
+    for (const sig of this.signatures) {
+      multisigSignatures = new Uint8Array([...multisigSignatures, sig.index, sig.signature.length, ...sig.signature])
+    }
+    return multisigSignatures
   }
 }
