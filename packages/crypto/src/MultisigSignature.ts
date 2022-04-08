@@ -61,7 +61,7 @@ export default class MultisigSignature {
     return valid_signature_count
   }
 
-  public static fromString(multisigAddress: MultisigAddress, input: Uint8Array): MultisigSignature {
+  public static fromBin(multisigAddress: MultisigAddress, input: Uint8Array): MultisigSignature {
     let addresses : Address[] = [];
     for (let i = 0; i < multisigAddress.N; i++){
       let address = Address.fromBin(Buffer.from(input.slice(0, PUBLIC_KEY_LENGTH)))
@@ -81,13 +81,11 @@ export default class MultisigSignature {
     return MultisigSignature.create(multisigAddress, addresses, signatures)
   }
 
-  public toString(): Uint8Array { 
-    const multisigPubKeysBin = this.addressesToString()
-    const multisigSignatures = this.signaturesToString()
-    return new Uint8Array([...multisigPubKeysBin, ...multisigSignatures])
+  get bin(): Uint8Array { 
+    return new Uint8Array([...this.serializedAddresses(), ...this.serlializedSignatures()])
   }
 
-  addressesToString() {
+  private serializedAddresses() {
     let multisigPubKeysBin = new Uint8Array()
     for (const address of this.addresses) {
       multisigPubKeysBin = new Uint8Array([...multisigPubKeysBin, ...address.bin])
@@ -95,7 +93,7 @@ export default class MultisigSignature {
     return multisigPubKeysBin
   }
 
-  signaturesToString() {
+  private serlializedSignatures() {
     let multisigSignatures = new Uint8Array()
     for (const sig of this.signatures) {
       multisigSignatures = new Uint8Array([...multisigSignatures, sig.index, sig.signature.length, ...sig.signature])
