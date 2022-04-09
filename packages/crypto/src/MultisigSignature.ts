@@ -1,4 +1,5 @@
 import Address, { KeyTypes, MultisigAddress } from '@helium/address'
+import { sortAddresses } from '@helium/address/build/utils';
 import { verifySignature } from './utils'
 const {MULTISIG_KEY_TYPE} = KeyTypes
 const PUBLIC_KEY_LENGTH = 33;
@@ -20,6 +21,10 @@ class KeySignature {
     }
     return new KeySignature(addresses.findIndex(addr => addr.publicKey === address.publicKey), signature)
   }
+
+  get bin(): Uint8Array {
+    return  new Uint8Array([this.index, this.signature.length, ...this.signature])
+  }
 }
 
 export default class MultisigSignature {
@@ -33,6 +38,8 @@ export default class MultisigSignature {
   }
 
   public static create(multisigAddress: MultisigAddress, addresses: Address[], signatures: Map<Address, Uint8Array>): MultisigSignature {
+    // TODO: Post test-cases, is this needed?
+    addresses = sortAddresses(addresses)
     if (multisigAddress.M > addresses.length) {
       throw new Error('insufficient signatures')
     } 
@@ -62,22 +69,8 @@ export default class MultisigSignature {
   }
 
   public static fromBin(multisigAddress: MultisigAddress, input: Uint8Array): MultisigSignature {
-    let addresses : Address[] = [];
-    for (let i = 0; i < multisigAddress.N; i++){
-      let address = Address.fromBin(Buffer.from(input.slice(0, PUBLIC_KEY_LENGTH)))
-      input = input.slice(PUBLIC_KEY_LENGTH)
-      addresses.push(address)
-    }
-    
-    let signatures = new Map<Address, Uint8Array>();
-    do {
-      let info = input.slice(0, 2);
-      let index = info[0];
-      let signature = input.slice(2, info[1] + 2)
-      signatures.set(addresses[index], signature)
-      input = input.slice(info[1] + 2)
-    } while (input.length);
-
+    let addresses = this.addressesFromBin(multisigAddress.N, input)
+    let signatures = this.signaturesFromBin(addresses, input.slice(PUBLIC_KEY_LENGTH * multisigAddress.N))
     return MultisigSignature.create(multisigAddress, addresses, signatures)
   }
 
@@ -95,9 +88,28 @@ export default class MultisigSignature {
 
   private serlializedSignatures() {
     let multisigSignatures = new Uint8Array()
-    for (const sig of this.signatures) {
-      multisigSignatures = new Uint8Array([...multisigSignatures, sig.index, sig.signature.length, ...sig.signature])
+    for (const sig of this.signatures.sort((a, b) => a.bin > b.bin ? 1 : -1)) {
+      multisigSignatures = new Uint8Array([...multisigSignatures, ...sig.bin])
     }
     return multisigSignatures
+  }
+  
+  private static addressesFromBin(N: number, input: Uint8Array): Address[] {
+    let addresses : Address[] = [];
+    for (let i = 0; i < N; i++){
+      let address = Address.fromBin(Buffer.from(input.slice(0, PUBLIC_KEY_LENGTH)))
+      input = input.slice(PUBLIC_KEY_LENGTH)
+      addresses.push(address)
+    }
+    return addresses
+  }
+  
+  private static signaturesFromBin(addresses: Address[], input: Uint8Array): Map<Address, Uint8Array> {
+    let signatures = new Map<Address, Uint8Array>();
+    do {
+      signatures.set(addresses[input[0]], input.slice(2, input[1] + 2))
+      input = input.slice(input[1] + 2)
+    } while (input.length);
+    return signatures;
   }
 }

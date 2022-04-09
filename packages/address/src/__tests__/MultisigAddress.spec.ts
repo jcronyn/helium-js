@@ -66,6 +66,13 @@ describe('testnet addresses', () => {
   })
 })
 
+describe('testnet addresses', () => {
+  it('decodes testnet addresses from b58', async () => {
+    const address = MultisigAddress.fromB58(testnetBobAliceMultisig2of2B58)
+    expect(address.netType).toBe(TESTNET)
+  })
+})
+
 describe('erlang interop', () => {
   it('makes the same multisig key as the erlang lib ', async () => {
     const keys = [
