@@ -128,7 +128,7 @@ describe('fromBin', () => {
 })
 
 describe('isValid', () => {
-    it('isValid if can deserialize', async () => {
+    it('is valid if can deserialize', async () => {
         const message = Buffer.from("Hello")
         const { bob, alice } = await usersFixture()
         const multisigAddress = await MultisigAddress.create([bob.address, alice.address], 1)
@@ -137,7 +137,7 @@ describe('isValid', () => {
         expect(MultisigSignature.isValid(multisigAddress, multisigSig.bin)).toBe(true)
     })
 
-    it('isValid if cannot deserialize', async () => {
+    it('is not valid if cannot deserialize', async () => {
         const { bob, alice } = await usersFixture()
         const multisigAddress = await MultisigAddress.create([bob.address, alice.address], 1)
         expect(MultisigSignature.isValid(multisigAddress, new Uint8Array(Buffer.from('notavalidmultisigserialization')))).toBe(false)
